@@ -176,7 +176,7 @@
         const urlParams = new URLSearchParams(window.location.search);
         const workId = urlParams.get('work') || 'bwv1006';
         
-        // Load YAML configuration file
+        // Load YAML configuration file from work exports directory
         const configResponse = await fetch(`${workId}/exports/${workId}.config.yaml`);
         if (!configResponse.ok) {
           throw new Error(`Failed to load configuration for ${workId}`);
@@ -186,12 +186,13 @@
         
         // Parse YAML (simple parser for our use case)
         CONFIG = parseYAML(yamlText);
-        console.log('Loaded configuration:', CONFIG);
-
-        // massage
-        CONFIG.files.svgPath   = `${workId}/exports/${CONFIG.files.svgPath }`;
+        
+        // Massage file paths to include work directory structure
+        CONFIG.files.svgPath = `${workId}/exports/${CONFIG.files.svgPath}`;
         CONFIG.files.notesPath = `${workId}/exports/${CONFIG.files.notesPath}`;
         CONFIG.files.audioPath = `${workId}/exports/${CONFIG.files.audioPath}`;
+        
+        console.log('Loaded configuration:', CONFIG);
         
         // Apply configuration to UI
         applyConfiguration();

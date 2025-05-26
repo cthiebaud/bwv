@@ -33,35 +33,28 @@ jobs:
     - name: Setup sparse checkout in submodule
       run: |
         cd bwv1006
-        # Use git sparse-checkout command (available in newer Git versions)
-        git sparse-checkout init --no-cone
-        git sparse-checkout set bwv1006_svg_no_hrefs_in_tabs_swellable_optimized.svg bwv1006_json_notes.json
+        # Use git sparse-checkout command with cone mode (more efficient)
+        git sparse-checkout init --cone
+        git sparse-checkout set exports/
         
         # Show what files we have
         echo "Files in submodule after sparse checkout:"
         ls -la
+        echo "Contents of exports directory:"
+        ls -la exports/ || echo "No exports directory found"
         
     - name: Create deployment directory
       run: |
         mkdir deploy
     
-        # Copy files from submodule (maintain bwv1006/ directory)
-        mkdir -p deploy/bwv1006
-        cp bwv1006/bwv1006_svg_no_hrefs_in_tabs_swellable_optimized.svg deploy/bwv1006/
-        cp bwv1006/bwv1006_json_notes.json deploy/bwv1006/
-        
-        # Copy main HTML file
+        # Copy root files
         cp index.html deploy/
         
-        # Copy audio files
-        mkdir -p deploy/audio
-        cp audio/bwv1006202505211530.wav deploy/audio/
+        # Copy media directory  
+        cp -r media deploy/
         
-        # Copy media assets
-        mkdir -p deploy/media
-        cp media/Wikipedia\'s_W.svg deploy/media/
-        cp media/bach-seal.svg deploy/media/
-        cp media/up-arrow-svgrepo-com.svg deploy/media/
+        # Copy bwv1006 submodule with exports directory preserved
+        cp -r bwv1006 deploy/
         
         # Show deployment contents and size
         echo "Deployment contents:"
