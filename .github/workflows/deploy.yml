@@ -33,12 +33,13 @@ jobs:
     - name: Setup sparse checkout in submodule
       run: |
         cd bwv1006
-        git config core.sparseCheckout true
-        git config core.sparseCheckoutCone false
-        echo "bwv1006_svg_no_hrefs_in_tabs_swellable_optimized.svg" > .git/info/sparse-checkout
-        echo "bwv1006_json_notes.json" >> .git/info/sparse-checkout
-        git read-tree -m -u HEAD
-        ls -la  # Show what files we have
+        # Use git sparse-checkout command (available in newer Git versions)
+        git sparse-checkout init --no-cone
+        git sparse-checkout set bwv1006_svg_no_hrefs_in_tabs_swellable_optimized.svg bwv1006_json_notes.json
+        
+        # Show what files we have
+        echo "Files in submodule after sparse checkout:"
+        ls -la
         
     - name: Create deployment directory
       run: |
