@@ -1,0 +1,68 @@
+# .github/workflows/deploy.yml
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:  # Allow manual trigger
+
+# Sets permissions of the GITHUB_TOKEN
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Allow only one concurrent deployment
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+        
+    - name: Setup sparse checkout in submodule
+      run: |
+        cd bwv1006
+        git config core.sparseCheckout true
+        git config core.sparseCheckoutCone false
+        echo "bwv1006_svg_no_hrefs_in_tabs_swellable_optimized.svg" > .git/info/sparse-checkout
+        echo "bwv1006_json_notes.json" >> .git/info/sparse-checkout
+        git read-tree -m -u HEAD
+        ls -la  # Show what files we have
+        
+    - name: Create deployment directory
+      run: |
+        mkdir deploy
+        # Copy your essential files
+        cp bwv1006/bwv1006_svg_no_hrefs_in_tabs_swellable_optimized.svg deploy/
+        cp bwv1006/bwv1006_json_notes.json deploy/
+        # Add any other files you need (index.html, etc.)
+        # cp index.html deploy/  # uncomment if you have it
+        
+        # Show deployment size
+        echo "Deployment contents:"
+        ls -lah deploy/
+        echo "Total deployment size:"
+        du -sh deploy/
+        
+    - name: Setup Pages
+      uses: actions/configure-pages@v4
+      
+    - name: Upload artifact
+      uses: actions/upload-pages-artifact@v3
+      with:
+        path: './deploy'
+        
+    - name: Deploy to GitHub Pages
+      id: deployment
+      uses: actions/deploy-pages@v4
