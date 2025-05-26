@@ -1,3 +1,4 @@
 [submodule "bwv1006"]
 	path = bwv1006
 	url = https://github.com/cthiebaud/bwv1006.git
+	branch = main

@@ -1,18 +1,18 @@
 <!DOCTYPE html>
 <html lang="en">
 
-<!-- test only custom workflow -->
+<!-- BWV Universal Player -->
 
 <head>
   <meta charset="UTF-8" />
   <link rel="icon" type="image/svg+xml" href="media/bach-seal.svg">
   <meta name="theme-color" content="#8B4513">
-  <title>BWV 1006</title>
+  <title id="page-title">BWV Player</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.6/dist/css/bootstrap.min.css">
   <style>
     :root {
       --header-height: 120px;
-      /* Centralized header height - used by scroll positioning and CSS scroll-margin */
+      /* Will be updated from config */
     }
 
     /* SVG container positioning and scroll behavior */
@@ -20,7 +20,6 @@
       display: grid;
       place-items: start center;
       scroll-margin-top: var(--header-height);
-      /* Accounts for sticky header when scrolling */
     }
 
     #svg-container > svg {
@@ -110,23 +109,26 @@
   <div class="sticky-top bg-light py-2 shadow-sm border-bottom">
     <div id="header" class="svg-at-top container-fluid text-center">
       <h2 class="d-flex align-items-center justify-content-center position-relative">
-        <span>Preludio BWV 1006</span>
+        <span id="work-title">Loading...</span>
         <!-- Wikipedia link button - positioned dynamically by JavaScript -->
-        <a id="button_wikipedia" type="button" href="https://en.wikipedia.org/wiki/Partita_for_Violin_No._3_(Bach)" target="_blank" rel="noopener noreferrer"
+        <a id="button_wikipedia" type="button" href="#" target="_blank" rel="noopener noreferrer"
           class="btn btn-outline-secondary btn-sm d-inline-flex align-items-center justify-content-center position-absolute rounded-circle"
-          title="Wikipedia: Partita for Violin No. 3 (Bach)" style="visibility: hidden; width: 28px; height: 28px; border: 1px solid gray; right: 0;">
+          title="" style="visibility: hidden; width: 28px; height: 28px; border: 1px solid gray; right: 0;">
           <img src="media/Wikipedia's_W.svg" width="32" height="32" alt="Wikipedia"
             style="filter: brightness(0) saturate(100%) invert(50%) sepia(5%) saturate(388%) hue-rotate(314deg) brightness(89%) contrast(87%);">
         </a>
       </h2>
       <div class="d-flex align-items-center justify-content-center position-relative">
         <!-- Main audio player -->
-        <audio id="audio" class="" style="flex-basis: 50%; max-width: 640px;" controls src="audio/bwv1006202505211530.wav"></audio>
+        <audio id="audio" class="" style="flex-basis: 50%; max-width: 640px;" controls>
+          <source id="audio-source" src="" type="audio/wav">
+          Your browser does not support the audio element.
+        </audio>
         <!-- Bar spy - positioned dynamically by JavaScript -->
         <div id="bar_spy" class="badge rounded-pill text-bg-secondary position-absolute" style="visibility: hidden;">
           <span id="current_bar">1</span>
           <span>of</span>
-          <span>138</span>
+          <span id="total_bars">--</span>
         </div>
       </div>
     </div>
@@ -137,7 +139,7 @@
     <div class="spinner-border text-primary" role="status">
       <span class="visually-hidden">Loading...</span>
     </div>
-    <div>Loading score and notes…</div>
+    <div>Loading configuration and score…</div>
   </div>
 
   <!-- Main content area for musical notation -->
@@ -145,49 +147,163 @@
     <div id="svg-container"></div>
 
     <!-- Scroll-to-top button - auto-hides when not needed -->
-    <a id="button_scroll_to_top" type="button" class="btn btn-outline-secondary mx-2 btn-sm d-inline-flex align-items-center justify-content-center position-fixed"
-      style="visibility: hidden; width: 24px; height: 24px; border: 1px solid gray; right: 0;" title="scroll_to_top"
+    <a id="button_scroll_to_top" type="button" class="btn btn-outline-secondary mx-2 btn-sm d-inline-flex align-items-center justify-content-center"
+      style="position: fixed; visibility: hidden; width: 24px; height: 24px; border: 1px solid gray; z-index: 1000;" title="scroll_to_top"
       onclick="document.getElementById('svg-container').scrollIntoView({ behavior: 'smooth', block: 'start'}); return false;">
       <img src="media/up-arrow-svgrepo-com.svg" width="16" height="16" alt="scroll_up"
         style="filter: brightness(0) saturate(100%) invert(50%) sepia(5%) saturate(388%) hue-rotate(314deg) brightness(89%) contrast(87%);">
     </a>
   </div>
 
-
   <footer id="footer" class="bg-light footer mt-auto py-1 d-flex flex-wrap justify-content-evenly shadow-sm border-top">
-    <div class="ms-2" style="margin: auto 0;"><!--  background: #57728b40; -->
-      <span class="text-muted" style="margin-top: auto; font-size: small;"><span>© 2025 Christophe Thiebaud</span></span>
+    <div class="ms-2" style="margin: auto 0;">
+      <span class="text-muted" style="margin-top: auto; font-size: small;">
+        <span>© 2025 Christophe Thiebaud</span>
+      </span>
     </div>
   </footer>
 
   <script>
     // =============================================================================
-    // CONFIGURATION AND CONSTANTS
+    // CONFIGURATION SYSTEM
     // =============================================================================
 
-    // File paths for SVG notation and note timing data
-    const svgPath = "bwv1006/bwv1006_svg_no_hrefs_in_tabs_swellable_optimized.svg";
-    const notesPath = "bwv1006/bwv1006_json_notes.json";
-    const audio = document.getElementById("audio");
+    let CONFIG = null; // Will be loaded from JSON
 
-    // Musical timing constants for bar calculation
-    const TOTAL_DURATION_SECONDS = 207 - 1;
-    const TOTAL_BARS = 138;
-    const SECONDS_PER_BAR = TOTAL_DURATION_SECONDS / TOTAL_BARS;
-    const VISUAL_LEAD_TIME = 0.2; // Visual highlighting lead time in seconds
+    async function loadConfiguration() {
+      try {
+        // Get work ID from URL parameter or default to bwv1006
+        const urlParams = new URLSearchParams(window.location.search);
+        const workId = urlParams.get('work') || 'bwv1006';
+        
+        // Load YAML configuration file
+        const configResponse = await fetch(`${workId}/exports/${workId}.config.yaml`);
+        if (!configResponse.ok) {
+          throw new Error(`Failed to load configuration for ${workId}`);
+        }
+        
+        const yamlText = await configResponse.text();
+        
+        // Parse YAML (simple parser for our use case)
+        CONFIG = parseYAML(yamlText);
+        console.log('Loaded configuration:', CONFIG);
+
+        // massage
+        CONFIG.files.svgPath   = `${workId}/exports/${CONFIG.files.svgPath }`;
+        CONFIG.files.notesPath = `${workId}/exports/${CONFIG.files.notesPath}`;
+        CONFIG.files.audioPath = `${workId}/exports/${CONFIG.files.audioPath}`;
+        
+        // Apply configuration to UI
+        applyConfiguration();
+        
+        return CONFIG;
+      } catch (error) {
+        console.error('Configuration loading error:', error);
+        // Fallback to default if config fails
+        showConfigurationError(error.message);
+        throw error;
+      }
+    }
+
+    // Simple YAML parser for our configuration structure
+    function parseYAML(yamlText) {
+      const config = {};
+      const lines = yamlText.split('\n');
+      let currentSection = null;
+      let currentObject = config;
+      
+      for (let line of lines) {
+        line = line.trim();
+        if (!line || line.startsWith('#')) continue;
+        
+        if (line.endsWith(':') && !line.includes('"')) {
+          // Section header
+          const sectionName = line.slice(0, -1);
+          currentSection = sectionName;
+          config[sectionName] = {};
+          currentObject = config[sectionName];
+        } else if (line.includes(':')) {
+          // Key-value pair
+          const colonIndex = line.indexOf(':');
+          const key = line.slice(0, colonIndex).trim();
+          let value = line.slice(colonIndex + 1).trim();
+          
+          // Remove quotes and parse types
+          if (value.startsWith('"') && value.endsWith('"')) {
+            value = value.slice(1, -1);
+          } else if (!isNaN(value) && !isNaN(parseFloat(value))) {
+            value = parseFloat(value);
+          }
+          
+          currentObject[key] = value;
+        }
+      }
+      
+      return config;
+    }
+
+    function applyConfiguration() {
+      // Update page title and meta
+      document.title = CONFIG.workInfo.title;
+      document.getElementById('page-title').textContent = CONFIG.workInfo.title;
+      
+      // Update work title in header
+      document.getElementById('work-title').textContent = CONFIG.workInfo.title;
+      
+      // Update total bars display
+      document.getElementById('total_bars').textContent = CONFIG.musicalStructure.totalBars;
+      
+      // Update audio source
+      const audioSource = document.getElementById('audio-source');
+      audioSource.src = CONFIG.files.audioPath;
+      audio.load(); // Reload audio with new source
+      
+      // Update Wikipedia link
+      const wikiButton = document.getElementById('button_wikipedia');
+      wikiButton.href = CONFIG.workInfo.externalURL;
+      wikiButton.title = `Wikipedia: ${CONFIG.workInfo.fullTitle}`;
+    }
+
+    function generateChannelCSS() {
+      // Channel colors are now hard-coded in CSS
+      // This function is kept for potential future use
+    }
+
+    function showConfigurationError(message) {
+      const loading = document.getElementById('loading');
+      loading.innerHTML = `
+        <div class="alert alert-danger" role="alert">
+          <h4 class="alert-heading">Configuration Error</h4>
+          <p>${message}</p>
+          <hr>
+          <p class="mb-0">Please check that the configuration file exists and is valid JSON.</p>
+        </div>
+      `;
+    }
 
     // =============================================================================
     // GLOBAL STATE VARIABLES
     // =============================================================================
 
-    // Note data and playback state
+    const audio = document.getElementById("audio");
     let notes = [], remainingNotes = [], offCandidateNotes = [];
-    let svgGlobal, noteDataGlobal, headerElementGlobal, footerElementGlobal, currentBarGlobal;
+    let svgGlobal, noteDataGlobal, bodyGlobal, headerElementGlobal, footerElementGlobal, currentBarGlobal;
     let isPlaying = false;
     let currentVisibleBar = -1;
+    let HEADER_HEIGHT = 120; // Will be updated from config
 
-    // UI measurements
-    let HEADER_HEIGHT = 120; // fallback value, updated from CSS
+    // =============================================================================
+    // CONFIGURATION-DEPENDENT CALCULATIONS
+    // =============================================================================
+
+    function getSecondsPerBar() {
+      return CONFIG.musicalStructure.totalDurationSeconds / CONFIG.musicalStructure.totalBars;
+    }
+
+    function getCurrentBar(currentTime) {
+      const barNumber = Math.floor(currentTime / getSecondsPerBar()) + 1;
+      return Math.max(1, Math.min(CONFIG.musicalStructure.totalBars, barNumber));
+    }
 
     // =============================================================================
     // PLAYBACK STATE MANAGEMENT
@@ -200,39 +316,10 @@
         bodyGlobal?.classList.add('playing');
       } else {
         bodyGlobal?.classList.remove('playing');
-        // Clean up visual states when stopping
         unhighlightAllNotes();
         hideAllBars();
         currentVisibleBar = -1;
       }
-    }
-
-    // =============================================================================
-    // DEBUG UTILITIES
-    // =============================================================================
-
-    function debugBar(barNumber) {
-      const rect = document.querySelector(`rect[data-bar="${barNumber}"]`);
-      if (!rect) return;
-
-      const bbox = rect.getBBox();
-      const boundingRect = rect.getBoundingClientRect();
-
-      console.log(`Bar ${barNumber}:`);
-      console.log('  getBBox() (SVG coordinates):', {
-        x: bbox.x,
-        y: bbox.y,
-        width: bbox.width,
-        height: bbox.height
-      });
-      console.log('  getBoundingClientRect() (screen coordinates):', {
-        x: boundingRect.x,
-        y: boundingRect.y,
-        top: boundingRect.top,
-        left: boundingRect.left,
-        width: boundingRect.width,
-        height: boundingRect.height
-      });
     }
 
     // =============================================================================
@@ -244,8 +331,6 @@
 
       const svgRect = svgGlobal.getBoundingClientRect();
       const tolerance = 50;
-
-      // Hide button when SVG is at optimal reading position (just below header)
       const optimalPosition = HEADER_HEIGHT + 20;
       const isAtOptimalPosition = (
         svgRect.top >= (optimalPosition - tolerance) &&
@@ -267,64 +352,33 @@
       const rects = document.querySelectorAll(`rect[data-bar="${barNumber}"]`);
       if (rects.length === 0) return;
 
-      // Calculate combined bounding box for all bar highlight rectangles
       let minTop = Infinity, maxBottom = -Infinity;
-      let minLeft = Infinity, maxRight = -Infinity;
-
       rects.forEach(rect => {
         const boundingRect = rect.getBoundingClientRect();
         minTop = Math.min(minTop, boundingRect.top);
         maxBottom = Math.max(maxBottom, boundingRect.bottom);
-        minLeft = Math.min(minLeft, boundingRect.left);
-        maxRight = Math.max(maxRight, boundingRect.right);
       });
 
-      const targetArea = {
-        top: minTop,
-        bottom: maxBottom,
-        left: minLeft,
-        right: maxRight,
-        height: maxBottom - minTop,
-        width: maxRight - minLeft
-      };
-
-      // Only scroll if target area isn't fully visible
       const padding = 32;
       const viewportTop = HEADER_HEIGHT + padding;
       const viewportBottom = window.innerHeight;
+      const isFullyVisible = minTop >= viewportTop && maxBottom <= viewportBottom;
 
-      const isFullyVisible = (
-        targetArea.top >= viewportTop &&
-        targetArea.bottom <= viewportBottom
-      );
+      if (isFullyVisible) return;
 
-      if (isFullyVisible) {
-        // console.log(`Bar ${barNumber} already fully visible, no scroll needed`);
-        return;
-      }
-
-      // Position target area at top of viewport for forward reading
       const currentScrollY = window.scrollY;
-      const targetPageY = targetArea.top + currentScrollY;
+      const targetPageY = minTop + currentScrollY;
       const desiredScrollY = targetPageY - HEADER_HEIGHT - padding;
 
       window.scrollTo({
         top: desiredScrollY,
         behavior: 'smooth'
       });
-
-      // console.log(`Scrolling to bar ${barNumber}, positioning below header with padding`);
     }
 
     // =============================================================================
-    // MUSICAL TIME AND BAR MANAGEMENT
+    // BAR MANAGEMENT
     // =============================================================================
-
-    function getCurrentBar(currentTime) {
-      // Calculate current bar number (1-indexed) from playback time
-      const barNumber = Math.floor(currentTime / SECONDS_PER_BAR) + 1;
-      return Math.max(1, Math.min(TOTAL_BARS, barNumber));
-    }
 
     function hideAllBars() {
       document.querySelectorAll('rect[data-bar]').forEach(rect => {
@@ -334,101 +388,11 @@
     }
 
     function showBar(barNumber) {
-      // Show bar highlights and auto-scroll to keep them visible
       scrollToBar(barNumber);
       currentBarGlobal.innerText = barNumber;
       document.querySelectorAll(`rect[data-bar="${barNumber}"]`).forEach(rect => {
         rect.style.visibility = 'visible';
       });
-    }
-
-    // =============================================================================
-    // NOTE DATA INITIALIZATION
-    // =============================================================================
-
-    function initializeNotes() {
-      // Map JSON note data to DOM elements with timing information
-      notes = noteDataGlobal.map(n => {
-        const elements = n.hrefs.map(href => {
-          const selector = `a[href$="${href}"]`;
-          return svgGlobal.querySelector(selector);
-        }).filter(Boolean);
-
-        // Add channel-specific CSS classes for colored highlighting
-        elements.forEach(el => {
-          el.classList.add(`channel-${n.channel}`);
-        });
-
-        return {
-          on: n.on,
-          off: n.off,
-          elements,
-        };
-      });
-
-      // console.log(notes)
-
-      remainingNotes = [...notes];
-      offCandidateNotes = [];
-
-      unhighlightAllNotes()
-      hideAllBars();
-
-    }
-
-    // =============================================================================
-    // APPLICATION INITIALIZATION
-    // =============================================================================
-
-    async function setup() {
-      try {
-        // Load SVG notation and note timing data in parallel
-        const [svgText, noteData] = await Promise.all([
-          fetch(svgPath).then(r => {
-            if (!r.ok) throw new Error("Failed to load SVG");
-            // console.log('Content-Encoding:', r.headers.get('content-encoding'));
-            // console.log('Content-Length:', r.headers.get('content-length'));
-            return r.text();
-          }),
-          fetch(notesPath).then(r => {
-            if (!r.ok) throw new Error("Failed to load bwv1006_json_notes.json");
-            return r.json();
-          })
-        ]);
-
-        noteDataGlobal = noteData;
-
-        // Initialize DOM references and CSS values
-        const svgContainer = document.getElementById("svg-container");
-        svgContainer.innerHTML = svgText;
-        bodyGlobal = document.querySelector('body')
-        svgGlobal = svgContainer.querySelector("svg");
-        headerElementGlobal = document.getElementById('header');
-        footerElementGlobal = document.getElementById('footer');
-        footerElementGlobal.style.visibility = "visible";
-        barSpyGlobal = document.getElementById('bar_spy');
-        currentBarGlobal = document.getElementById('current_bar');
-        HEADER_HEIGHT = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--header-height'));
-
-        if (!svgGlobal) {
-          console.error("SVG element not found in loaded content");
-          return;
-        }
-
-        // Initialize application components
-        initializeNotes();
-
-        initEventHandlers();
-
-        // console.log(`Loaded ${notes.length} notes`);
-        // console.log(`Calculated: ${SECONDS_PER_BAR.toFixed(2)} seconds per bar (${TOTAL_BARS} bars in ${TOTAL_DURATION_SECONDS}s)`);
-      } catch (err) {
-        console.error("Setup error:", err);
-      }
-
-      // Hide loading spinner and initialize UI state
-      document.getElementById("loading")?.classList.add("d-none");
-      checkScrollButtonVisibility()
     }
 
     // =============================================================================
@@ -444,7 +408,39 @@
     }
 
     function unhighlightAllNotes() {
-      svgGlobal.querySelectorAll('a[href]:not([href=""]).active').forEach(el => el.classList.remove("active"));
+      if (!svgGlobal) return;
+      svgGlobal.querySelectorAll('a[href]:not([href=""]).active').forEach(el => {
+        el.classList.remove("active")
+      });
+    }
+
+    // =============================================================================
+    // NOTE DATA INITIALIZATION
+    // =============================================================================
+
+    function initializeNotes() {
+      notes = noteDataGlobal.map(n => {
+        const elements = n.hrefs.map(href => {
+          const selector = `a[href$="${href}"]`;
+          return svgGlobal.querySelector(selector);
+        }).filter(Boolean);
+
+        // Add channel-specific CSS classes
+        elements.forEach(el => {
+          el.classList.add(`channel-${n.channel}`);
+        });
+
+        return {
+          on: n.on,
+          off: n.off,
+          elements,
+        };
+      });
+
+      remainingNotes = [...notes];
+      offCandidateNotes = [];
+      unhighlightAllNotes();
+      hideAllBars();
     }
 
     // =============================================================================
@@ -452,27 +448,25 @@
     // =============================================================================
 
     function positionButtons() {
-      // Position header and footer buttons relative to SVG content for better visual alignment
-      const buttons = document.querySelectorAll('#button_wikipedia, #bar_spy')
+      if (!svgGlobal) return;
+      
+      const buttons = document.querySelectorAll('#button_wikipedia, #bar_spy');
       const scrollButton = document.getElementById('button_scroll_to_top');
       const svgRect = svgGlobal.getBoundingClientRect();
+      
       buttons.forEach(button => {
         button.style.right = `${svgRect.left}px`;
         button.style.zIndex = '12';
-      })
-      // Position scroll button to right edge of visible SVG
+      });
+      
       if (scrollButton) {
-        const scrollButtonRect = scrollButton.getBoundingClientRect();
-        scrollButton.style.right = `${window.innerWidth - svgRect.right - (scrollButtonRect.right - scrollButtonRect.left)}px`;
-
-        // Keep button in viewport, but align with SVG when possible
-        const bottomOffset = Math.max(40, window.innerHeight - svgRect.bottom);
-        scrollButton.style.bottom = `${bottomOffset}px`;
+        scrollButton.style.right = `${window.innerWidth - svgRect.right}px`;
+        scrollButton.style.bottom = '20px';
       }
     }
 
     // =============================================================================
-    // PERFORMANCE OPTIMIZATION UTILITIES
+    // PERFORMANCE OPTIMIZATION
     // =============================================================================
 
     function debounce(func, wait) {
@@ -487,7 +481,6 @@
       };
     }
 
-    // Debounced versions for performance
     const debouncedPositionButtons = debounce(positionButtons, 50);
     const debouncedCheckScroll = debounce(checkScrollButtonVisibility, 50);
 
@@ -496,161 +489,169 @@
     // =============================================================================
 
     function syncLoop() {
-      if (!isPlaying) return;
+      if (!isPlaying || !CONFIG) return;
 
       const now = audio.currentTime;
-      const visualTime = now + VISUAL_LEAD_TIME;
-      const visualEndTime = visualTime;
+      const visualTime = now + CONFIG.musicalStructure.visualLeadTimeSeconds;
 
-      // Activate notes that should be highlighted now
+      // Activate notes
       while (remainingNotes.length && remainingNotes[0].on <= visualTime) {
         const note = remainingNotes.shift();
         highlightNote(note);
         offCandidateNotes.push(note);
       }
 
-      // Deactivate notes that should no longer be highlighted
+      // Deactivate notes
       offCandidateNotes = offCandidateNotes.filter(note => {
-        if (note.off <= visualEndTime) {
+        if (note.off <= visualTime) {
           unhighlightNote(note);
           return false;
         }
         return true;
       });
 
-      // Update bar highlighting and auto-scroll
+      // Update bar highlighting
       const currentBar = getCurrentBar(visualTime);
       if (currentBar !== currentVisibleBar) {
         hideAllBars();
         showBar(currentBar);
         currentVisibleBar = currentBar;
-        // console.log(`Showing bar ${currentBar} at time ${now.toFixed(2)}s`);
       }
 
       requestAnimationFrame(syncLoop);
     }
 
     // =============================================================================
-    // PLAYBACK STATE RESET
+    // APPLICATION INITIALIZATION
     // =============================================================================
 
-    function resetAnimationState() {
-      isPlaying = false;
-      setPlayingState(false);
-      audio.currentTime = 0;
-      initializeNotes();
-      currentVisibleBar = -1;
+    async function setup() {
+      try {
+        // First load configuration
+        await loadConfiguration();
+
+        // Then load work-specific files
+        const [svgText, noteData] = await Promise.all([
+          fetch(CONFIG.files.svgPath).then(r => {
+            if (!r.ok) throw new Error(`Failed to load SVG: ${CONFIG.files.svgPath}`);
+            return r.text();
+          }),
+          fetch(CONFIG.files.notesPath).then(r => {
+            if (!r.ok) throw new Error(`Failed to load notes: ${CONFIG.files.notesPath}`);
+            return r.json();
+          })
+        ]);
+
+        noteDataGlobal = noteData;
+
+        // Initialize DOM references
+        const svgContainer = document.getElementById("svg-container");
+        svgContainer.innerHTML = svgText;
+        bodyGlobal = document.querySelector('body');
+        svgGlobal = svgContainer.querySelector("svg");
+        headerElementGlobal = document.getElementById('header');
+        footerElementGlobal = document.getElementById('footer');
+        footerElementGlobal.style.visibility = "visible";
+        currentBarGlobal = document.getElementById('current_bar');
+        HEADER_HEIGHT = 120; // Hard-coded header height
+
+        if (!svgGlobal) {
+          throw new Error("SVG element not found in loaded content");
+        }
+
+        // Initialize components
+        initializeNotes();
+        initEventHandlers();
+
+        console.log(`Loaded ${notes.length} notes for ${CONFIG.workInfo.title}`);
+        console.log(`Musical structure: ${CONFIG.musicalStructure.totalBars} bars in ${CONFIG.musicalStructure.totalDurationSeconds}s`);
+
+      } catch (err) {
+        console.error("Setup error:", err);
+        showConfigurationError(err.message);
+        return;
+      }
+
+      // Hide loading spinner
+      document.getElementById("loading")?.classList.add("d-none");
+      checkScrollButtonVisibility();
+    }
+
+    // =============================================================================
+    // EVENT HANDLERS
+    // =============================================================================
+
+    function initEventHandlers() {
+      // Initialize UI
+      positionButtons();
+      document.querySelectorAll('#button_wikipedia, #button_scroll_to_top, #bar_spy').forEach(button => {
+        button.style.visibility = 'visible';
+      });
+
+      // Window events
+      window.addEventListener('resize', debouncedPositionButtons);
+      window.addEventListener('scroll', debouncedCheckScroll);
+
+      // Audio events
+      audio.addEventListener("play", () => {
+        isPlaying = true;
+        setPlayingState(true);
+        requestAnimationFrame(syncLoop);
+      });
+
+      audio.addEventListener("pause", () => {
+        isPlaying = false;
+        setPlayingState(false);
+      });
+
+      audio.addEventListener("ended", () => {
+        isPlaying = false;
+        setPlayingState(false);
+        audio.currentTime = 0;
+        initializeNotes();
+        currentVisibleBar = -1;
+      });
+
+      // Seeking events
+      let seekingTimeout;
+      function handleSeek() {
+        if (!CONFIG) return;
+        
+        const now = audio.currentTime;
+        remainingNotes = notes.filter(note => note.on > now);
+        offCandidateNotes = notes.filter(note => note.on <= now && note.off > now);
+
+        unhighlightAllNotes();
+        offCandidateNotes.forEach(note => highlightNote(note));
+
+        const currentBar = getCurrentBar(now);
+        hideAllBars();
+        showBar(currentBar);
+        currentVisibleBar = currentBar;
+      }
+
+      audio.addEventListener('seeking', () => {
+        bodyGlobal?.classList.add('seeking');
+        clearTimeout(seekingTimeout);
+        handleSeek();
+      });
+
+      audio.addEventListener("seeked", () => {
+        clearTimeout(seekingTimeout);
+        seekingTimeout = setTimeout(() => {
+          bodyGlobal?.classList.remove('seeking');
+          hideAllBars();
+        }, 1000);
+        handleSeek();
+      });
     }
 
     // =============================================================================
     // APPLICATION STARTUP
     // =============================================================================
 
-    if (audio.readyState >= 1) {
-      setup();
-    } else {
-      audio.addEventListener("loadedmetadata", setup);
-    }
-
-    // =============================================================================
-    // EVENT HANDLER INITIALIZATION
-    // =============================================================================
-
-    function initEventHandlers() {
-      // Initialize UI positioning and visibility
-      positionButtons();
-      document.querySelectorAll('#button_wikipedia, #button_scroll_to_top, #bar_spy').forEach(button => {
-        button.style.visibility = 'visible'
-      });
-
-      // Window event listeners with performance optimization
-      window.addEventListener('resize', debouncedPositionButtons);
-      window.addEventListener('scroll', debouncedCheckScroll);
-
-      // Audio playback event handlers
-      audio.addEventListener("play", () => {
-        isPlaying = true;
-        setPlayingState(true);
-        requestAnimationFrame(syncLoop);
-        // console.log("Playback started.");
-      });
-
-      let seekingTimeout;
-
-      function visualCueOnSeek() {
-        const now = audio.currentTime;
-
-        // Recalculate note states based on new playback position
-        remainingNotes = notes.filter(note => note.on > now);
-        offCandidateNotes = notes.filter(note => note.on <= now && note.off > now);
-
-        // Update visual states
-        unhighlightAllNotes();
-        offCandidateNotes.forEach(note => highlightNote(note));
-
-        // Update bar highlighting
-        const currentBar = getCurrentBar(now);
-        hideAllBars();
-        showBar(currentBar);
-        currentVisibleBar = currentBar;
-
-        // console.log("seeked to", now.toFixed(3), "→ notes updated, showing bar", currentBar);
-      }
-
-      audio.addEventListener('seeking', () => {
-        bodyGlobal?.classList.add('seeking');
-        // Clear any existing timeout
-        clearTimeout(seekingTimeout);
-
-        visualCueOnSeek();
-      });
-
-      audio.addEventListener("seeked", () => {
-        // Don't remove class immediately, wait a bit
-        clearTimeout(seekingTimeout);
-        seekingTimeout = setTimeout(() => { // CSS transition looks ugly, better time out
-          bodyGlobal?.classList.remove('seeking');
-          hideAllBars();
-        }, 1000); // Adjust delay as needed
-
-        visualCueOnSeek();
-      });
-
-      audio.addEventListener("pause", () => {
-        isPlaying = false;
-        setPlayingState(false);
-        // console.log("Playback paused.");
-      });
-
-      audio.addEventListener("ended", () => {
-        resetAnimationState();
-        // console.log("Playback ended.");
-      });
-
-      document.addEventListener('mousedown', e => {
-        if (e.button === 0) {
-          console.log("mouse down")
-        };
-      });
-
-      document.addEventListener('mouseup', e => {
-        if (e.button === 0) {
-          console.log("mouse up")
-        };
-      });
-
-      // Handle cases where mouse is released outside the window
-      document.addEventListener('mouseleave', e => {
-        if (e.button === 0) {
-          console.log("mouse out")
-        };
-      });
-
-      audio.addEventListener('mousedown', () => {
-        console.log("audio mouse down!")
-      });
-
-    }
+    // Start the application
+    setup();
   </script>
 </body>
 
