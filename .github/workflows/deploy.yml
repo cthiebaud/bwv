@@ -44,15 +44,32 @@ jobs:
     - name: Create deployment directory
       run: |
         mkdir deploy
-        # Copy your essential files
-        cp bwv1006/bwv1006_svg_no_hrefs_in_tabs_swellable_optimized.svg deploy/
-        cp bwv1006/bwv1006_json_notes.json deploy/
-        # Add any other files you need (index.html, etc.)
-        # cp index.html deploy/  # uncomment if you have it
+    
+        # Copy files from submodule (maintain bwv1006/ directory)
+        mkdir -p deploy/bwv1006
+        cp bwv1006/bwv1006_svg_no_hrefs_in_tabs_swellable_optimized.svg deploy/bwv1006/
+        cp bwv1006/bwv1006_json_notes.json deploy/bwv1006/
         
-        # Show deployment size
+        # Copy main HTML file
+        cp index.html deploy/
+        
+        # Copy audio files
+        mkdir -p deploy/audio
+        cp audio/bwv1006202505211530.wav deploy/audio/
+        
+        # Copy media assets
+        mkdir -p deploy/media
+        cp media/Wikipedia\'s_W.svg deploy/media/
+        cp media/bach-seal.svg deploy/media/
+        cp media/up-arrow-svgrepo-com.svg deploy/media/
+        
+        # Show deployment contents and size
         echo "Deployment contents:"
-        ls -lah deploy/
+        find deploy/ -type f -exec ls -lah {} \;
+        echo ""
+        echo "Directory structure:"
+        tree deploy/ || find deploy/ -type d
+        echo ""
         echo "Total deployment size:"
         du -sh deploy/
         
