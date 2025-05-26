@@ -2,7 +2,7 @@
 <html lang="en">
 
 <!-- test only custom workflow -->
- 
+
 <head>
   <meta charset="UTF-8" />
   <link rel="icon" type="image/svg+xml" href="media/bach-seal.svg">
@@ -23,59 +23,59 @@
       /* Accounts for sticky header when scrolling */
     }
 
-    #svg-container svg {
+    #svg-container > svg {
       height: auto;
       max-width: 100%;
     }
 
-    #svg-container svg a[href] {
+    #svg-container > svg a[href] {
       color: black;
     }
 
     /* Note highlighting transitions - slow fade out for smooth visual */
-    #svg-container svg a[href] path {
+    #svg-container > svg a[href] path {
       transition: fill 1.25s ease, filter 1.25s ease, transform 1.25s ease;
     }
 
     /* Fast fade in for immediate visual feedback */
-    #svg-container svg a[href].active path {
+    #svg-container > svg a[href].active path {
       transition: fill 0.15s linear, filter 0.15s linear, transform 0.15s linear;
     }
 
     /* Scale effect for active notes */
-    #svg-container svg.playing a[href].active {
+    body.playing #svg-container > svg a[href].active {
       transform-box: fill-box;
       transform-origin: center;
       transform: scale(1.25);
     }
 
     /* Bar highlights */
-    #svg-container svg.playing:not(.seeking) rect[data-bar] {
+    body.playing:not(.seeking) #svg-container > svg rect[data-bar] {
       filter: none;
     }
 
-    #svg-container svg:not(.playing) rect[data-bar] {
+    body:not(.playing) #svg-container > svg rect[data-bar] {
       visibility: hidden;
     }
 
-    #svg-container svg.seeking rect[data-bar] {
+    body.seeking #svg-container > svg rect[data-bar] {
       filter: blur(1rem) drop-shadow(0 0 0.2rem black);
     }
 
     /* Channel-specific colors for different instrument parts */
-    #svg-container svg.playing a[href].active.channel-0 path {
+    body.playing #svg-container > svg a[href].active.channel-0 path {
       fill: coral !important;
       filter: drop-shadow(0 0 5px coral) drop-shadow(0 0 10px coral);
     }
 
-    #svg-container svg.playing a[href].active.channel-1 path {
+    body.playing #svg-container > svg a[href].active.channel-1 path {
       fill: lightgreen !important;
       filter: drop-shadow(0 0 5px lightgreen) drop-shadow(0 0 10px lightgreen);
     }
 
     /* Hide scroll-to-top button when playing or already at optimal position */
-    .playing #button_scroll_to_top,
-    .svg-at-top #button_scroll_to_top {
+    body.playing #button_scroll_to_top,
+    body.svg-at-top #button_scroll_to_top {
       visibility: hidden !important;
     }
 
@@ -87,15 +87,20 @@
       transition: filter 1s ease, width 1s ease;
     }
 
-    #bar_spy.seeking {
+    body.seeking #bar_spy {
       filter: drop-shadow(0 0 0.2rem black);
       transition: filter .1s ease, width .1s ease;
     }
 
-    #bar_spy.seeking :first-child {
+    body.seeking #bar_spy :first-child {
       display: inline-block;
       width: 24px;
       text-align: right;
+    }
+
+    footer#footer {
+      visibility: hidden;
+      z-index: 10;
     }
   </style>
 </head>
@@ -138,19 +143,21 @@
   <!-- Main content area for musical notation -->
   <div class="container">
     <div id="svg-container"></div>
-  </div>
 
-  <footer id="footer" style="z-index: 10; display: flex;" class="bg-light footer fixed-bottom mt-auto py-1 d-flex flex-wrap justify-content-evenly shadow-sm border-top">
-    <div class="ms-2" style="margin: auto 0;"><!--  background: #57728b40; -->
-      <span class="text-muted" style="margin-top: auto; font-size: small;"><span>© 2025 Christophe Thiebaud</span></span>
-    </div>
     <!-- Scroll-to-top button - auto-hides when not needed -->
-    <a id="button_scroll_to_top" type="button" class="btn btn-outline-secondary mx-2 btn-sm d-inline-flex align-items-center justify-content-center position-absolute"
+    <a id="button_scroll_to_top" type="button" class="btn btn-outline-secondary mx-2 btn-sm d-inline-flex align-items-center justify-content-center position-fixed"
       style="visibility: hidden; width: 24px; height: 24px; border: 1px solid gray; right: 0;" title="scroll_to_top"
       onclick="document.getElementById('svg-container').scrollIntoView({ behavior: 'smooth', block: 'start'}); return false;">
       <img src="media/up-arrow-svgrepo-com.svg" width="16" height="16" alt="scroll_up"
         style="filter: brightness(0) saturate(100%) invert(50%) sepia(5%) saturate(388%) hue-rotate(314deg) brightness(89%) contrast(87%);">
     </a>
+  </div>
+
+
+  <footer id="footer" class="bg-light footer mt-auto py-1 d-flex flex-wrap justify-content-evenly shadow-sm border-top">
+    <div class="ms-2" style="margin: auto 0;"><!--  background: #57728b40; -->
+      <span class="text-muted" style="margin-top: auto; font-size: small;"><span>© 2025 Christophe Thiebaud</span></span>
+    </div>
   </footer>
 
   <script>
@@ -187,16 +194,12 @@
     // =============================================================================
 
     function setPlayingState(isPlayingState) {
-      if (!svgGlobal) return;
+      if (!bodyGlobal) return;
 
       if (isPlayingState) {
-        svgGlobal.classList.add('playing');
-        headerElementGlobal.classList.add('playing');
-        footerElementGlobal.classList.add('playing');
+        bodyGlobal?.classList.add('playing');
       } else {
-        svgGlobal.classList.remove('playing');
-        headerElementGlobal.classList.remove('playing');
-        footerElementGlobal.classList.remove('playing');
+        bodyGlobal?.classList.remove('playing');
         // Clean up visual states when stopping
         unhighlightAllNotes();
         hideAllBars();
@@ -237,7 +240,7 @@
     // =============================================================================
 
     function checkScrollButtonVisibility() {
-      if (!footerElementGlobal || !svgGlobal || isPlaying) return;
+      if (!bodyGlobal || !svgGlobal || isPlaying) return;
 
       const svgRect = svgGlobal.getBoundingClientRect();
       const tolerance = 50;
@@ -250,9 +253,9 @@
       );
 
       if (isAtOptimalPosition) {
-        footerElementGlobal.classList.add('svg-at-top');
+        bodyGlobal?.classList.add('svg-at-top');
       } else {
-        footerElementGlobal.classList.remove('svg-at-top');
+        bodyGlobal?.classList.remove('svg-at-top');
       }
     }
 
@@ -398,9 +401,11 @@
         // Initialize DOM references and CSS values
         const svgContainer = document.getElementById("svg-container");
         svgContainer.innerHTML = svgText;
+        bodyGlobal = document.querySelector('body')
         svgGlobal = svgContainer.querySelector("svg");
         headerElementGlobal = document.getElementById('header');
         footerElementGlobal = document.getElementById('footer');
+        footerElementGlobal.style.visibility = "visible";
         barSpyGlobal = document.getElementById('bar_spy');
         currentBarGlobal = document.getElementById('current_bar');
         HEADER_HEIGHT = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--header-height'));
@@ -446,14 +451,24 @@
     // DYNAMIC BUTTON POSITIONING
     // =============================================================================
 
-    function positionButton() {
+    function positionButtons() {
       // Position header and footer buttons relative to SVG content for better visual alignment
-      const buttons = document.querySelectorAll('#button_wikipedia, #button_scroll_to_top, #bar_spy')
+      const buttons = document.querySelectorAll('#button_wikipedia, #bar_spy')
+      const scrollButton = document.getElementById('button_scroll_to_top');
       const svgRect = svgGlobal.getBoundingClientRect();
       buttons.forEach(button => {
         button.style.right = `${svgRect.left}px`;
-        button.style.zIndex = '1000';
+        button.style.zIndex = '12';
       })
+      // Position scroll button to right edge of visible SVG
+      if (scrollButton) {
+        const scrollButtonRect = scrollButton.getBoundingClientRect();
+        scrollButton.style.right = `${window.innerWidth - svgRect.right - (scrollButtonRect.right - scrollButtonRect.left)}px`;
+
+        // Keep button in viewport, but align with SVG when possible
+        const bottomOffset = Math.max(40, window.innerHeight - svgRect.bottom);
+        scrollButton.style.bottom = `${bottomOffset}px`;
+      }
     }
 
     // =============================================================================
@@ -473,7 +488,7 @@
     }
 
     // Debounced versions for performance
-    const debouncedPositionButton = debounce(positionButton, 50);
+    const debouncedPositionButtons = debounce(positionButtons, 50);
     const debouncedCheckScroll = debounce(checkScrollButtonVisibility, 50);
 
     // =============================================================================
@@ -543,13 +558,13 @@
 
     function initEventHandlers() {
       // Initialize UI positioning and visibility
-      positionButton();
+      positionButtons();
       document.querySelectorAll('#button_wikipedia, #button_scroll_to_top, #bar_spy').forEach(button => {
         button.style.visibility = 'visible'
       });
 
       // Window event listeners with performance optimization
-      window.addEventListener('resize', debouncedPositionButton);
+      window.addEventListener('resize', debouncedPositionButtons);
       window.addEventListener('scroll', debouncedCheckScroll);
 
       // Audio playback event handlers
@@ -583,8 +598,7 @@
       }
 
       audio.addEventListener('seeking', () => {
-        svgGlobal.classList.add('seeking');
-        barSpyGlobal.classList.add('seeking');
+        bodyGlobal?.classList.add('seeking');
         // Clear any existing timeout
         clearTimeout(seekingTimeout);
 
@@ -595,8 +609,7 @@
         // Don't remove class immediately, wait a bit
         clearTimeout(seekingTimeout);
         seekingTimeout = setTimeout(() => { // CSS transition looks ugly, better time out
-          barSpyGlobal.classList.remove('seeking'); 
-          svgGlobal.classList.remove('seeking');
+          bodyGlobal?.classList.remove('seeking');
           hideAllBars();
         }, 1000); // Adjust delay as needed
 
