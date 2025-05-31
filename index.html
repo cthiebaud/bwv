@@ -22,54 +22,74 @@
       scroll-margin-top: var(--header-height);
     }
 
-    #svg-container > svg {
+    #svg-container>svg {
       height: auto;
       max-width: 100%;
     }
 
-    #svg-container > svg a[href] {
+    #svg-container>svg a[href] {
       color: black;
     }
 
     /* Note highlighting transitions - slow fade out for smooth visual */
-    #svg-container > svg a[href] path {
+    #svg-container>svg a[href] path {
       transition: fill 1.25s ease, filter 1.25s ease, transform 1.25s ease;
     }
 
     /* Fast fade in for immediate visual feedback */
-    #svg-container > svg a[href].active path {
+    #svg-container>svg a[href].active path {
       transition: fill 0.15s linear, filter 0.15s linear, transform 0.15s linear;
     }
 
     /* Scale effect for active notes */
-    body.playing #svg-container > svg a[href].active {
+    body.playing #svg-container>svg a[href].active {
       transform-box: fill-box;
       transform-origin: center;
       transform: scale(1.25);
     }
 
     /* Bar highlights */
-    body.playing:not(.seeking) #svg-container > svg rect[data-bar] {
+    body.playing:not(.seeking) #svg-container>svg rect[data-bar] {
       filter: none;
     }
 
-    body:not(.playing) #svg-container > svg rect[data-bar] {
+    body:not(.playing) #svg-container>svg rect[data-bar] {
       visibility: hidden;
     }
 
-    body.seeking #svg-container > svg rect[data-bar] {
+    body.seeking #svg-container>svg rect[data-bar] {
       filter: blur(1rem) drop-shadow(0 0 0.2rem black);
     }
 
     /* Channel-specific colors for different instrument parts */
-    body.playing #svg-container > svg a[href].active.channel-0 path {
+    body.playing #svg-container>svg a[href].active.channel-0 path {
       fill: coral !important;
       filter: drop-shadow(0 0 5px coral) drop-shadow(0 0 10px coral);
     }
 
-    body.playing #svg-container > svg a[href].active.channel-1 path {
+    body.playing #svg-container>svg a[href].active.channel-1 path {
       fill: lightgreen !important;
       filter: drop-shadow(0 0 5px lightgreen) drop-shadow(0 0 10px lightgreen);
+    }
+
+    body.playing #svg-container>svg a[href].active.channel-2 path {
+      fill: dodgerblue !important;
+      filter: drop-shadow(0 0 5px dodgerblue) drop-shadow(0 0 10px dodgerblue);
+    }
+
+    body.playing #svg-container>svg a[href].active.channel-3 path {
+      fill: gold !important;
+      filter: drop-shadow(0 0 5px gold) drop-shadow(0 0 10px gold);
+    }
+
+    body.playing #svg-container>svg a[href].active.channel-4 path {
+      fill: mediumpurple !important;
+      filter: drop-shadow(0 0 5px mediumpurple) drop-shadow(0 0 10px mediumpurple);
+    }
+
+    body.playing #svg-container>svg a[href].active.channel-5 path {
+      fill: lightpink !important;
+      filter: drop-shadow(0 0 5px lightpink) drop-shadow(0 0 10px lightpink);
     }
 
     /* Hide scroll-to-top button when playing or already at optimal position */
@@ -112,8 +132,8 @@
         <span id="work-title">Loading...</span>
         <!-- Wikipedia link button - positioned dynamically by JavaScript -->
         <a id="button_wikipedia" type="button" href="#" target="_blank" rel="noopener noreferrer"
-          class="btn btn-outline-secondary btn-sm d-inline-flex align-items-center justify-content-center position-absolute rounded-circle"
-          title="" style="visibility: hidden; width: 28px; height: 28px; border: 1px solid gray; right: 0;">
+          class="btn btn-outline-secondary btn-sm d-inline-flex align-items-center justify-content-center position-absolute rounded-circle" title=""
+          style="visibility: hidden; width: 28px; height: 28px; border: 1px solid gray; right: 0;">
           <img src="media/Wikipedia's_W.svg" width="32" height="32" alt="Wikipedia"
             style="filter: brightness(0) saturate(100%) invert(50%) sepia(5%) saturate(388%) hue-rotate(314deg) brightness(89%) contrast(87%);">
         </a>
@@ -175,28 +195,28 @@
         // Get work ID from URL parameter or default to bwv1006
         const urlParams = new URLSearchParams(window.location.search);
         const workId = urlParams.get('work') || 'bwv1006';
-        
+
         // Load YAML configuration file from work exports directory
         const configResponse = await fetch(`${workId}/exports/${workId}.config.yaml`);
         if (!configResponse.ok) {
           throw new Error(`Failed to load configuration for ${workId}`);
         }
-        
+
         const yamlText = await configResponse.text();
-        
+
         // Parse YAML (simple parser for our use case)
         CONFIG = parseYAML(yamlText);
-        
+
         // Massage file paths to include work directory structure
         CONFIG.files.svgPath = `${workId}/exports/${CONFIG.files.svgPath}`;
         CONFIG.files.notesPath = `${workId}/exports/${CONFIG.files.notesPath}`;
         CONFIG.files.audioPath = `${workId}/exports/${CONFIG.files.audioPath}`;
-        
+
         console.log('Loaded configuration:', CONFIG);
-        
+
         // Apply configuration to UI
         applyConfiguration();
-        
+
         return CONFIG;
       } catch (error) {
         console.error('Configuration loading error:', error);
@@ -212,11 +232,11 @@
       const lines = yamlText.split('\n');
       let currentSection = null;
       let currentObject = config;
-      
+
       for (let line of lines) {
         line = line.trim();
         if (!line || line.startsWith('#')) continue;
-        
+
         if (line.endsWith(':') && !line.includes('"')) {
           // Section header
           const sectionName = line.slice(0, -1);
@@ -228,18 +248,18 @@
           const colonIndex = line.indexOf(':');
           const key = line.slice(0, colonIndex).trim();
           let value = line.slice(colonIndex + 1).trim();
-          
+
           // Remove quotes and parse types
           if (value.startsWith('"') && value.endsWith('"')) {
             value = value.slice(1, -1);
           } else if (!isNaN(value) && !isNaN(parseFloat(value))) {
             value = parseFloat(value);
           }
-          
+
           currentObject[key] = value;
         }
       }
-      
+
       return config;
     }
 
@@ -247,18 +267,18 @@
       // Update page title and meta
       document.title = CONFIG.workInfo.title;
       document.getElementById('page-title').textContent = CONFIG.workInfo.title;
-      
+
       // Update work title in header
       document.getElementById('work-title').textContent = CONFIG.workInfo.title;
-      
+
       // Update total bars display
       document.getElementById('total_bars').textContent = CONFIG.musicalStructure.totalBars;
-      
+
       // Update audio source
       const audioSource = document.getElementById('audio-source');
       audioSource.src = CONFIG.files.audioPath;
       audio.load(); // Reload audio with new source
-      
+
       // Update Wikipedia link
       const wikiButton = document.getElementById('button_wikipedia');
       wikiButton.href = CONFIG.workInfo.externalURL;
@@ -450,16 +470,16 @@
 
     function positionButtons() {
       if (!svgGlobal) return;
-      
+
       const buttons = document.querySelectorAll('#button_wikipedia, #bar_spy');
       const scrollButton = document.getElementById('button_scroll_to_top');
       const svgRect = svgGlobal.getBoundingClientRect();
-      
+
       buttons.forEach(button => {
         button.style.right = `${svgRect.left}px`;
         button.style.zIndex = '12';
       });
-      
+
       if (scrollButton) {
         scrollButton.style.right = `${window.innerWidth - svgRect.right}px`;
         scrollButton.style.bottom = '20px';
@@ -617,7 +637,7 @@
       let seekingTimeout;
       function handleSeek() {
         if (!CONFIG) return;
-        
+
         const now = audio.currentTime;
         remainingNotes = notes.filter(note => note.on > now);
         offCandidateNotes = notes.filter(note => note.on <= now && note.off > now);
