@@ -30,18 +30,27 @@ jobs:
       with:
         submodules: recursive
         
-    - name: Setup sparse checkout in submodule
+    - name: Setup sparse checkout in submodules
       run: |
+        # Setup sparse checkout for bwv1006
         cd bwv1006
-        # Use git sparse-checkout command with cone mode (more efficient)
         git sparse-checkout init --cone
         git sparse-checkout set exports/
-        
-        # Show what files we have
-        echo "Files in submodule after sparse checkout:"
+        echo "Files in bwv1006 after sparse checkout:"
         ls -la
-        echo "Contents of exports directory:"
+        echo "Contents of bwv1006 exports directory:"
         ls -la exports/ || echo "No exports directory found"
+        cd ..
+        
+        # Setup sparse checkout for bwv543
+        cd bwv543
+        git sparse-checkout init --cone
+        git sparse-checkout set exports/
+        echo "Files in bwv543 after sparse checkout:"
+        ls -la
+        echo "Contents of bwv543 exports directory:"
+        ls -la exports/ || echo "No exports directory found"
+        cd ..
         
     - name: Create deployment directory
       run: |
@@ -53,8 +62,9 @@ jobs:
         # Copy media directory  
         cp -r media deploy/
         
-        # Copy bwv1006 submodule with exports directory preserved
+        # Copy both submodules with exports directories preserved
         cp -r bwv1006 deploy/
+        cp -r bwv543 deploy/
         
         # Show deployment contents and size
         echo "Deployment contents:"
