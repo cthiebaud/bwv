@@ -122,6 +122,26 @@
       visibility: hidden;
       z-index: 10;
     }
+
+    /* Measure highlighting controls */
+    #measure-controls {
+      margin: 10px 0;
+      padding: 10px;
+      background-color: #f8f9fa;
+      border-radius: 5px;
+      border: 1px solid #dee2e6;
+    }
+
+    #measure-controls label {
+      font-weight: 500;
+      margin-right: 10px;
+    }
+
+    #measure-controls select {
+      border: 1px solid #ced4da;
+      border-radius: 3px;
+      padding: 2px 6px;
+    }
   </style>
 </head>
 
@@ -165,6 +185,14 @@
 
   <!-- Main content area for musical notation -->
   <div class="container">
+    <!-- Measure highlighting controls -->
+    <div id="measure-controls" style="display: none;">
+      <label for="highlight-select">Measure Highlighting:</label>
+      <select id="highlight-select">
+        <option value="">None</option>
+      </select>
+    </div>
+    
     <div id="svg-container"></div>
 
     <!-- Scroll-to-top button - auto-hides when not needed -->
@@ -184,7 +212,167 @@
     </div>
   </footer>
 
-  <script>
+  <script type="module">
+    // Import LilyPond timing system
+    import { initializeLilyPondTiming, createLilyPondGetCurrentBar, getLilyPondTimingInfo } from './bars.js';
+
+    // =============================================================================
+    // MEASURE HIGHLIGHTING SYSTEM
+    // =============================================================================
+
+    class MeasureHighlighter {
+      constructor() {
+        this.structures = new Map();
+      }
+
+      // Add a highlighting structure (e.g., harmonic, thematic, etc.)
+      addStructure(name, config) {
+        this.structures.set(name, config);
+      }
+
+      // Apply a specific structure
+      applyStructure(structureName) {
+        // Clear existing highlights
+        this.clearHighlights();
+        
+        const structure = this.structures.get(structureName);
+        if (!structure) {
+          console.warn(`Structure '${structureName}' not found`);
+          return;
+        }
+
+        // Find all elements with data-bar attributes
+        const barElements = document.querySelectorAll('[data-bar]');
+        
+        barElements.forEach(element => {
+          const barNumber = parseInt(element.getAttribute('data-bar'));
+          const style = this.getStyleForBar(barNumber, structure);
+          
+          if (style) {
+            Object.assign(element.style, style);
+          }
+        });
+      }
+
+      // Determine style for a specific bar based on structure
+      getStyleForBar(barNumber, structure) {
+        if (structure.type === 'alternating') {
+          const colorIndex = (barNumber - 1) % structure.colors.length;
+          return {
+            fill: structure.colors[colorIndex],
+            // fillOpacity: structure.opacity || '0.3'
+          };
+        }
+        
+        if (structure.type === 'conditional') {
+          const colorIndex = structure.condition(barNumber);
+          if (colorIndex >= 0 && colorIndex < structure.colors.length) {
+            return {
+              fill: structure.colors[colorIndex],
+              // fillOpacity: structure.opacity || '0.3'
+            };
+          }
+        }
+        
+        if (structure.type === 'ranges') {
+          for (const range of structure.ranges) {
+            if (barNumber >= range.start && barNumber <= range.end) {
+              return {
+                fill: range.color,
+                // fillOpacity: structure.opacity || '0.3'
+              };
+            }
+          }
+        }
+        
+        return null;
+      }
+
+      // Clear all highlights
+      clearHighlights() {
+        const barElements = document.querySelectorAll('[data-bar]');
+        barElements.forEach(element => {
+          element.style.fill = '';
+          element.style.fillOpacity = '';
+        });
+      }
+
+      // Get all available structures
+      getStructureNames() {
+        return Array.from(this.structures.keys());
+      }
+    }
+
+    // Global measure highlighter instance
+    let measureHighlighter = null;
+
+    function initializeMeasureHighlighter() {
+      measureHighlighter = new MeasureHighlighter();
+
+      // Add structures - you can load these from external files later
+      measureHighlighter.addStructure('line-breaks', {
+        type: 'conditional',
+        colors: ['gainsboro', 'whitesmoke'],
+        opacity: '0.3',
+        condition: (barNumber) => {
+          // Example line starts from your original BWV1006 structure
+          const lineStarts = [1, 3, 7, 9, 17, 29, 33, 39, 43, 67, 79, 83, 90, 93, 99, 102, 109, 113, 119, 123, 130, 138];
+          return lineStarts.includes(barNumber) ? 0 : 1;
+        }
+      });
+
+      // Simple alternating colors
+      measureHighlighter.addStructure('alternating', {
+        type: 'alternating',
+        colors: ['lightblue', 'lightgreen', 'lightyellow', 'lightpink'],
+        opacity: '0.25'
+      });
+
+      // Example: Harmonic analysis (adjust ranges as needed)
+      measureHighlighter.addStructure('harmonic', {
+        type: 'ranges',
+        opacity: '0.3',
+        ranges: [
+          { start: 1, end: 20, color: 'lightcyan' },
+          { start: 21, end: 40, color: 'lightgreen' },
+          { start: 41, end: 60, color: 'lightyellow' },
+          { start: 61, end: 80, color: 'lightpink' },
+          { start: 81, end: 100, color: 'lightblue' },
+          { start: 101, end: 138, color: 'lavender' }
+        ]
+      });
+
+      // Populate the select dropdown
+      populateHighlightSelect();
+    }
+
+    function populateHighlightSelect() {
+      const select = document.getElementById('highlight-select');
+      if (!select || !measureHighlighter) return;
+
+      // Clear existing options except "None"
+      while (select.children.length > 1) {
+        select.removeChild(select.lastChild);
+      }
+
+      // Add structure options
+      measureHighlighter.getStructureNames().forEach(name => {
+        const option = document.createElement('option');
+        option.value = name;
+        option.textContent = name.charAt(0).toUpperCase() + name.slice(1).replace('-', ' ');
+        select.appendChild(option);
+      });
+
+      // Add event listener
+      select.addEventListener('change', (e) => {
+        if (e.target.value && measureHighlighter) {
+          measureHighlighter.applyStructure(e.target.value);
+        } else if (measureHighlighter) {
+          measureHighlighter.clearHighlights();
+        }
+      });
+    }
+
     // =============================================================================
     // CONFIGURATION SYSTEM
     // =============================================================================
@@ -278,6 +466,9 @@
     let currentVisibleBar = -1;
     let HEADER_HEIGHT = 120; // Will be updated from config
     let maxTick = 0; // Calculated from note data
+    
+    // LilyPond timing integration
+    let lilyPondGetCurrentBar = null;
 
     // =============================================================================
     // MIDI TIMING CONVERSION (simple rule of three)
@@ -306,12 +497,15 @@
     // CONFIGURATION-DEPENDENT CALCULATIONS
     // =============================================================================
 
-    function getSecondsPerBar() {
-      return CONFIG.musicalStructure.totalDurationSeconds / CONFIG.musicalStructure.totalBars;
-    }
-
     function getCurrentBar(currentTime) {
-      const barNumber = Math.floor(currentTime / getSecondsPerBar()) + 1;
+      // Use LilyPond timing if available, otherwise fall back to equal division
+      if (lilyPondGetCurrentBar) {
+        return lilyPondGetCurrentBar(currentTime);
+      }
+      
+      // Simple fallback calculation
+      const secondsPerBar = CONFIG.musicalStructure.totalDurationSeconds / CONFIG.musicalStructure.totalBars;
+      const barNumber = Math.floor(currentTime / secondsPerBar) + 1;
       return Math.max(1, Math.min(CONFIG.musicalStructure.totalBars, barNumber));
     }
 
@@ -482,8 +676,6 @@
       unhighlightAllNotes();
       hideAllBars();
 
-      console.log(remainingNotes)
-
       console.log(`Initialized ${notes.length} notes for playback synchronization`);
     }
 
@@ -537,8 +729,6 @@
 
       const now = audio.currentTime;
       const visualTime = now + CONFIG.musicalStructure.visualLeadTimeSeconds;
-
-      console.log(now)
 
       // Activate notes that should start playing
       while (remainingNotes.length && remainingNotes[0].on <= visualTime) {
@@ -608,12 +798,43 @@
         // Convert notes from ticks to seconds (ONCE)
         convertNotesFromTicks();
 
+        // Initialize LilyPond timing system
+        const originalGetCurrentBar = (currentTime) => {
+          const secondsPerBar = CONFIG.musicalStructure.totalDurationSeconds / CONFIG.musicalStructure.totalBars;
+          const barNumber = Math.floor(currentTime / secondsPerBar) + 1;
+          return Math.max(1, Math.min(CONFIG.musicalStructure.totalBars, barNumber));
+        };
+        
+        const lilyPondActive = initializeLilyPondTiming(
+          convertedNotes, 
+          CONFIG.musicalStructure.totalDurationSeconds,
+          originalGetCurrentBar
+        );
+        
+        if (lilyPondActive) {
+          lilyPondGetCurrentBar = createLilyPondGetCurrentBar();
+        }
+
         // Initialize components
         initializeNotes();
         initEventHandlers();
 
+        // Initialize measure highlighting after SVG is loaded
+        initializeMeasureHighlighter();
+        
+        // Show measure controls
+        // document.getElementById('measure-controls').style.display = 'block';
+
         console.log(`Loaded ${notes.length} notes for ${CONFIG.workInfo.title}`);
         console.log(`Musical structure: ${CONFIG.musicalStructure.totalBars} bars in ${CONFIG.musicalStructure.totalDurationSeconds}s`);
+
+        // Log timing system status
+        const timingInfo = getLilyPondTimingInfo();
+        if (timingInfo.isActive) {
+          console.log('✅ Using LilyPond-calibrated bar timing');
+        } else {
+          console.log('⚠️ Using equal-division bar timing (fallback)');
+        }
 
         // Log timing format detection
         if (noteDataGlobal.length > 0) {
