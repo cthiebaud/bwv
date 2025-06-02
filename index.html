@@ -9,6 +9,7 @@
   <meta name="theme-color" content="#8B4513">
   <title id="page-title">BWV Player</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.6/dist/css/bootstrap.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/js-yaml/4.1.0/js-yaml.min.js"></script>
   <style>
     :root {
       --header-height: 120px;
@@ -204,8 +205,8 @@
 
         const yamlText = await configResponse.text();
 
-        // Parse YAML (simple parser for our use case)
-        CONFIG = parseYAML(yamlText);
+        // Parse YAML using js-yaml library
+        CONFIG = jsyaml.load(yamlText);
 
         // Massage file paths to include work directory structure
         CONFIG.files.svgPath = `${workId}/exports/${CONFIG.files.svgPath}`;
@@ -224,43 +225,6 @@
         showConfigurationError(error.message);
         throw error;
       }
-    }
-
-    // Simple YAML parser for our configuration structure
-    function parseYAML(yamlText) {
-      const config = {};
-      const lines = yamlText.split('\n');
-      let currentSection = null;
-      let currentObject = config;
-
-      for (let line of lines) {
-        line = line.trim();
-        if (!line || line.startsWith('#')) continue;
-
-        if (line.endsWith(':') && !line.includes('"')) {
-          // Section header
-          const sectionName = line.slice(0, -1);
-          currentSection = sectionName;
-          config[sectionName] = {};
-          currentObject = config[sectionName];
-        } else if (line.includes(':')) {
-          // Key-value pair
-          const colonIndex = line.indexOf(':');
-          const key = line.slice(0, colonIndex).trim();
-          let value = line.slice(colonIndex + 1).trim();
-
-          // Remove quotes and parse types
-          if (value.startsWith('"') && value.endsWith('"')) {
-            value = value.slice(1, -1);
-          } else if (!isNaN(value) && !isNaN(parseFloat(value))) {
-            value = parseFloat(value);
-          }
-
-          currentObject[key] = value;
-        }
-      }
-
-      return config;
     }
 
     function applyConfiguration() {
@@ -308,10 +272,35 @@
 
     const audio = document.getElementById("audio");
     let notes = [], remainingNotes = [], offCandidateNotes = [];
+    let convertedNotes = []; // Converted notes stored once after loading
     let svgGlobal, noteDataGlobal, bodyGlobal, headerElementGlobal, footerElementGlobal, currentBarGlobal;
     let isPlaying = false;
     let currentVisibleBar = -1;
     let HEADER_HEIGHT = 120; // Will be updated from config
+    let maxTick = 0; // Calculated from note data
+
+    // =============================================================================
+    // MIDI TIMING CONVERSION (simple rule of three)
+    // =============================================================================
+
+    function tickToSeconds(tick) {
+      if (maxTick === 0) return 0;
+      // Simple linear mapping: (tick position / total ticks) * total duration
+      return (tick / maxTick) * CONFIG.musicalStructure.totalDurationSeconds;
+    }
+
+    function convertNoteTiming(note) {
+      // Handle tick format only
+      if (note.on_tick !== undefined && note.off_tick !== undefined) {
+        return {
+          ...note,
+          on: tickToSeconds(note.on_tick),
+          off: tickToSeconds(note.off_tick)
+        };
+      }
+      // If already in seconds format (shouldn't happen but handle gracefully)
+      return note;
+    }
 
     // =============================================================================
     // CONFIGURATION-DEPENDENT CALCULATIONS
@@ -436,32 +425,66 @@
     }
 
     // =============================================================================
-    // NOTE DATA INITIALIZATION
+    // NOTE DATA CONVERSION (called once after loading JSON)
     // =============================================================================
 
-    function initializeNotes() {
-      notes = noteDataGlobal.map(n => {
-        const elements = n.hrefs.map(href => {
+    function convertNotesFromTicks() {
+      // Calculate max tick from note data (rule of three conversion)
+      maxTick = Math.max(...noteDataGlobal.map(note =>
+        Math.max(note.on_tick || 0, note.off_tick || 0)
+      ));
+
+      console.log(`Calculated max_tick: ${maxTick} ticks`);
+      console.log(`Target duration: ${CONFIG.musicalStructure.totalDurationSeconds} seconds`);
+
+      // Convert notes from tick format to runtime format (ONCE)
+      convertedNotes = noteDataGlobal.map(rawNote => {
+        // Convert timing using simple rule of three
+        const note = convertNoteTiming(rawNote);
+
+        // Find SVG elements for this note using hrefs
+        const elements = note.hrefs.map(href => {
           const selector = `a[href$="${href}"]`;
           return svgGlobal.querySelector(selector);
         }).filter(Boolean);
 
-        // Add channel-specific CSS classes
+        // Add channel-specific CSS classes for visual styling
         elements.forEach(el => {
-          el.classList.add(`channel-${n.channel}`);
+          el.classList.add(`channel-${note.channel}`);
         });
 
         return {
-          on: n.on,
-          off: n.off,
+          on: note.on,
+          off: note.off,
+          pitch: note.pitch,
+          channel: note.channel,
           elements,
         };
       });
 
+      // Sort notes by onset time for efficient processing
+      convertedNotes.sort((a, b) => a.on - b.on);
+
+      console.log(`Converted ${convertedNotes.length} notes from ticks to seconds`);
+      console.log(`Tick range: 0 to ${maxTick} ticks`);
+      console.log(`Converted time range: 0 to ${Math.max(...convertedNotes.map(n => n.off)).toFixed(2)} seconds`);
+    }
+
+    // =============================================================================
+    // NOTE DATA INITIALIZATION (called for resets)
+    // =============================================================================
+
+    function initializeNotes() {
+      // Use pre-converted notes (no re-conversion needed)
+      notes = [...convertedNotes];
       remainingNotes = [...notes];
       offCandidateNotes = [];
       unhighlightAllNotes();
       hideAllBars();
+
+      console.log(remainingNotes)
+
+      console.log(`Initialized ${notes.length} notes for playback synchronization`);
     }
 
     // =============================================================================
@@ -506,7 +529,7 @@
     const debouncedCheckScroll = debounce(checkScrollButtonVisibility, 50);
 
     // =============================================================================
-    // REAL-TIME PLAYBACK SYNCHRONIZATION
+    // REAL-TIME PLAYBACK SYNCHRONIZATION  
     // =============================================================================
 
     function syncLoop() {
@@ -515,23 +538,25 @@
       const now = audio.currentTime;
       const visualTime = now + CONFIG.musicalStructure.visualLeadTimeSeconds;
 
-      // Activate notes
+      console.log(now)
+
+      // Activate notes that should start playing
       while (remainingNotes.length && remainingNotes[0].on <= visualTime) {
         const note = remainingNotes.shift();
         highlightNote(note);
         offCandidateNotes.push(note);
       }
 
-      // Deactivate notes
+      // Deactivate notes that should stop playing
       offCandidateNotes = offCandidateNotes.filter(note => {
         if (note.off <= visualTime) {
           unhighlightNote(note);
-          return false;
+          return false; // Remove from array
         }
-        return true;
+        return true; // Keep in array
       });
 
-      // Update bar highlighting
+      // Update bar highlighting with smooth transitions
       const currentBar = getCurrentBar(visualTime);
       if (currentBar !== currentVisibleBar) {
         hideAllBars();
@@ -580,12 +605,25 @@
           throw new Error("SVG element not found in loaded content");
         }
 
+        // Convert notes from ticks to seconds (ONCE)
+        convertNotesFromTicks();
+
         // Initialize components
         initializeNotes();
         initEventHandlers();
 
         console.log(`Loaded ${notes.length} notes for ${CONFIG.workInfo.title}`);
         console.log(`Musical structure: ${CONFIG.musicalStructure.totalBars} bars in ${CONFIG.musicalStructure.totalDurationSeconds}s`);
+
+        // Log timing format detection
+        if (noteDataGlobal.length > 0) {
+          const sampleNote = noteDataGlobal[0];
+          if (sampleNote.on_tick !== undefined) {
+            console.log('Detected tick timing format - using rule of three conversion');
+          } else {
+            console.log('Detected seconds timing format');
+          }
+        }
 
       } catch (err) {
         console.error("Setup error:", err);
@@ -633,19 +671,24 @@
         currentVisibleBar = -1;
       });
 
-      // Seeking events
+      // Seeking events with improved responsiveness
       let seekingTimeout;
       function handleSeek() {
         if (!CONFIG) return;
 
         const now = audio.currentTime;
-        remainingNotes = notes.filter(note => note.on > now);
-        offCandidateNotes = notes.filter(note => note.on <= now && note.off > now);
+        const visualTime = now + CONFIG.musicalStructure.visualLeadTimeSeconds;
 
+        // Reset note states based on current position
+        remainingNotes = notes.filter(note => note.on > visualTime);
+        offCandidateNotes = notes.filter(note => note.on <= visualTime && note.off > visualTime);
+
+        // Update visual highlighting
         unhighlightAllNotes();
         offCandidateNotes.forEach(note => highlightNote(note));
 
-        const currentBar = getCurrentBar(now);
+        // Update bar highlighting
+        const currentBar = getCurrentBar(visualTime);
         hideAllBars();
         showBar(currentBar);
         currentVisibleBar = currentBar;
